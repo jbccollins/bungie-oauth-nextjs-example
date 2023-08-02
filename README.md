@@ -1,34 +1,53 @@
+
+# Bungie OAuth Next.js Example
+
+## About
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+
+The project is a bare-bones app containing nothing more than what is required to do OAuth and a few examples of making authenticated requests. Is this app doing everything the best way? Idfk. Does it work? Yeah.
 
 ## Getting Started
 
-First, run the development server:
+First, install the dependencies
+
+```bash
+npm install
+```
+
+#### Create your own bungie.net app
+- Set env vars
+
+#### Local SSL
+Bungie's OAuth setup *REQUIRES* that you use `https`, even when developing locally. You *CANNOT* use `http`. Next.js does not supoort using `https` locally out of the box. To get `https` workng locally we need to create and use a locally-trusted SSL certificate.
+
+Follow these steps: (All commands should be run from the root directory of your project)
+##### Mac
+First install `mkcert`; a tool that we will use to create a locally-trusted SSL certificate.
+`brew install mkcert`
+
+Next create a "Certificate Authority" and add it's certificate to your system's trust store.
+`mkcert -install`
+
+Finally create an SSL Certificate for `localhost`
+`mkcert localhost`
+
+Verify that the two files `localhost-key.pem` and `localhost.pem` were created in the root directory of your project.
+
+##### Windows
+- IDFK if you know pls contribute
+
+## Run The App
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+and open [https://localhost:3001](https://localhost:3001) in your browser
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+## Other Useful Things To Know
+- data.destinysets.com
+- VSCode extension
+- API Discord
+- This youtube video
+- [paracausal.science](https://paracausal.science/guide/api/app-setup)
