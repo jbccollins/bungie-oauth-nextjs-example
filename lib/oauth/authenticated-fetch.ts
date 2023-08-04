@@ -1,12 +1,6 @@
-import { PlatformErrorCodes } from "bungie-api-ts-no-const-enum/destiny2";
-import { getAccessTokenFromRefreshToken } from "./request";
-import {
-  Tokens,
-  getToken,
-  hasTokenExpired,
-  removeAccessToken,
-  removeToken,
-} from "./tokens";
+import { PlatformErrorCodes } from "bungie-api-ts-no-const-enum/app";
+import { getAccessToken } from "./request";
+import { Tokens, getToken, removeAccessToken, removeToken } from "./tokens";
 
 /**
  * A fatal token error means we have to log in again.
@@ -24,12 +18,11 @@ export class FatalTokenError extends Error {
  * or bounces us back to login.
  */
 export async function fetchWithBungieOAuth(
-  request: RequestInfo | URL,
+  request: URL | RequestInfo,
   options?: RequestInit,
   triedRefresh = false
 ): Promise<Response> {
-  request = request as Request | string;
-  if (typeof request === "string") {
+  if (!(request instanceof Request)) {
     request = new Request(request);
   }
 
@@ -37,12 +30,9 @@ export async function fetchWithBungieOAuth(
     const token = await getActiveToken();
     request.headers.set("Authorization", `Bearer ${token.accessToken.value}`);
   } catch (e: any) {
-    // Note: instanceof doesn't work due to a babel bug:
-    if (e.name === "FatalTokenError") {
+    if (e instanceof FatalTokenError) {
       console.warn(
-        "bungie auth",
-        "Unable to get auth token, clearing auth tokens & going to login: ",
-        e
+        `Unable to get auth token, clearing auth tokens. Go to /login if you get this error. ${e}`
       );
 
       removeToken();
@@ -65,10 +55,7 @@ export async function fetchWithBungieOAuth(
     }
     // OK, Bungie has told us our access token is expired or
     // invalid. Refresh it and try again.
-    console.log(
-      "bungie auth",
-      "Access token expired, removing access token and trying again"
-    );
+    console.log("Access token expired, removing access token and trying again");
     removeAccessToken();
     return fetchWithBungieOAuth(request, options, true);
   }
@@ -77,12 +64,6 @@ export async function fetchWithBungieOAuth(
 }
 
 async function responseIndicatesBadToken(response: Response) {
-  // https://github.com/Bungie-net/api/issues/1151: D1 endpoints have a bug where they can return 401 if you've logged in via Stadia.
-  // This hack prevents a login loop
-  if (/\/D1\/Platform\/Destiny\/\d+\/Account\/\d+\/$/.test(response.url)) {
-    return false;
-  }
-
   if (response.status === 401) {
     return true;
   }
@@ -104,99 +85,10 @@ async function responseIndicatesBadToken(response: Response) {
 }
 
 export async function getActiveToken(): Promise<Tokens> {
-  const token = getToken();
-  if (!token) {
-    removeToken();
-    throw new FatalTokenError("No auth token exists, redirect to login");
-  }
-
-  const accessTokenIsValid = token && !hasTokenExpired(token.accessToken);
-  if (accessTokenIsValid) {
-    return token;
-  }
-
-  // Get a new token from refresh token
-  const refreshTokenIsValid = token && !hasTokenExpired(token.refreshToken);
-  if (!refreshTokenIsValid) {
-    removeToken();
-    throw new FatalTokenError(
-      "Refresh token invalid, clearing auth tokens & going to login"
-    );
-  }
-
   try {
-    await getAccessTokenFromRefreshToken(token.refreshToken!);
+    await getAccessToken();
     return getToken() as Tokens;
   } catch (e) {
-    return await handleRefreshTokenError(e as Error | Response);
+    throw new Error(`Unable to get active token: ${e}`);
   }
-}
-
-async function handleRefreshTokenError(
-  response: Error | Response
-): Promise<Tokens> {
-  if (response instanceof TypeError) {
-    console.warn(
-      "bungie auth",
-      "Error getting auth token from refresh token because there's no internet connection (or a permissions issue). Not clearing token.",
-      response
-    );
-    throw response;
-  }
-  if (response instanceof Error) {
-    console.warn(
-      "bungie auth",
-      "Other error getting auth token from refresh token. Not clearing auth tokens",
-      response
-    );
-    throw response;
-  }
-
-  let data;
-  try {
-    data = await response.json();
-  } catch (e) {}
-
-  if (data) {
-    if (data.error === "server_error") {
-      if (data.error_description === "SystemDisabled") {
-        throw new Error("BungieService.Maintenance");
-      } else if (data.error_description !== "AuthorizationRecordExpired") {
-        throw new Error(
-          `Unknown error getting response token: ${data.error}, ${data.error_description}`
-        );
-      }
-    }
-
-    if (data.ErrorCode) {
-      switch (data.ErrorCode) {
-        case PlatformErrorCodes.RefreshTokenNotYetValid:
-        case PlatformErrorCodes.AccessTokenHasExpired:
-        case PlatformErrorCodes.AuthorizationCodeInvalid:
-        case PlatformErrorCodes.AuthorizationRecordExpired:
-          throw new FatalTokenError(
-            "Refresh token expired or not valid, platform error " +
-              data.ErrorCode
-          );
-      }
-    }
-  }
-
-  switch (response.status) {
-    case -1:
-      throw new Error(
-        "Error getting auth token from refresh token because there's no internet connection. Not clearing token."
-      );
-    case 400:
-    case 401:
-    case 403: {
-      throw new FatalTokenError(
-        "Refresh token expired or not valid, status " + response.status
-      );
-    }
-  }
-
-  throw new Error(
-    "Unknown error getting response token: " + JSON.stringify(response)
-  );
 }

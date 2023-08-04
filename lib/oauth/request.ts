@@ -1,26 +1,51 @@
-import { getToken, setToken, Token, Tokens } from "./tokens";
+import { XOR } from "@/lib/utils";
+import { getToken, hasTokenExpired, setToken, Token, Tokens } from "./tokens";
 
-export const getAccessTokenFromRefreshToken = async (
-  _refreshToken?: Token | undefined
+// Get the access token from our internal API route using either a code or a refresh token.
+// Note that code and refreshToken are mutually exclusive.
+type GetAccessTokenParams = XOR<{ code: string }, { refreshToken: string }>;
+
+export const getAccessToken = async (
+  params?: GetAccessTokenParams
 ): Promise<void> => {
-  const refreshToken = _refreshToken ? _refreshToken : getToken()?.refreshToken;
-  if (!refreshToken) {
-    throw new Error("No refresh token");
+  let val: string | null = null;
+  let key: string | null = null;
+  // If no params are provided, we'll try to get the access
+  // token using the token information from localstorage.
+  if (!params) {
+    const { accessToken, refreshToken } = getToken() || {};
+
+    // If we have an access token and it hasn't expired, we're done.
+    if (accessToken && !hasTokenExpired(accessToken)) {
+      console.log("localStorage access token is valid");
+      return;
+    }
+
+    // If we have a refresh token and it hasn't expired, we'll use that.
+    if (!refreshToken) {
+      throw new Error("No refresh token found in local storage");
+    }
+    if (hasTokenExpired(refreshToken)) {
+      throw new Error("Refresh token has expired");
+    }
+    console.log("localStorage refresh token is valid");
+    key = "refreshToken";
+    val = refreshToken.value;
+  } else {
+    // If params are provided, we'll use those to forcibly refresh the access token.
+    if (!params.code && !params.refreshToken) {
+      throw new Error("No code or refresh token");
+    }
+    key = params.code ? "code" : "refreshToken";
+    val = (params.code || params.refreshToken) as string;
   }
 
   const queryParams = new URLSearchParams({
-    refreshToken: refreshToken.value,
+    [key]: val,
   });
-  const response = await fetch(`/api/refresh-token?${queryParams.toString()}`);
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error);
-  }
-  handleAccessToken(data);
-};
 
-export const getAccessToken = async (code: string): Promise<void> => {
-  const response = await fetch(`/api/access-token?code=${code}`);
+  console.log(`getting access token with params: ${queryParams}`);
+  const response = await fetch(`/api/access-token?${queryParams}`);
   const data = await response.json();
   if (data.error) {
     throw new Error(data.error);
@@ -63,7 +88,6 @@ function handleAccessToken(
       };
     }
 
-    // TODO: Figure out the right place to set tokens and how to redirect to login
     setToken(tokens);
     return tokens;
   } else {

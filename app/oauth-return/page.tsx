@@ -15,7 +15,7 @@ export default function OauthReturn() {
     }
     (async () => {
       try {
-        await getAccessToken(code);
+        await getAccessToken({ code });
         router.push("/");
       } catch (e) {}
     })();
