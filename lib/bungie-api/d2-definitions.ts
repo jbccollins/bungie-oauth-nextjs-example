@@ -38,7 +38,7 @@ import {
   DestinyVendorDefinition,
   DestinyVendorGroupDefinition,
 } from "bungie-api-ts-no-const-enum/destiny2";
-import { getManifest } from "./manifest-service";
+import { doGetManifest } from "./manifest-service";
 
 export const allTables = [
   "InventoryItem",
@@ -152,7 +152,7 @@ export class HashLookupFailure extends Error {
  * above (defs.TalentGrid, etc.).
  */
 export async function getDefinitions(): Promise<D2ManifestDefinitions> {
-  const manifest = await getManifest(allTables);
+  const manifest = await doGetManifest(allTables);
   const defs = buildDefinitionsFromManifest(manifest);
   return defs;
 }

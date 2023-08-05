@@ -7,6 +7,7 @@ import {
   getDestinyAccountsForBungieAccount,
   getMembershipData,
 } from "@/lib/bungie-api/destiny2";
+import { deleteManifestFile } from "@/lib/bungie-api/manifest-service";
 import { bungieNetPath } from "@/lib/utils";
 import { DestinyInventoryItemDefinition } from "bungie-api-ts-no-const-enum/destiny2";
 import { useEffect, useState } from "react";
@@ -15,6 +16,10 @@ export default function ManifestPlayground() {
   const [inventoryItemDefinitions, setInventoryItemDefinitions] = useState<
     DestinyInventoryItemDefinition[]
   >([]);
+  const handleClearManifestCache = async () => {
+    await deleteManifestFile();
+    window.location.reload();
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [characterInventoryItemHashes, setCharacterInventoryItemHashes] =
@@ -55,8 +60,17 @@ export default function ManifestPlayground() {
       {loading && <div style={{ marginTop: "8px" }}>Loading...</div>}
       {error && <div style={{ marginTop: "8px" }}>Manifest Error</div>}
       {!loading && !error && (
-        <div style={{ marginTop: "24px" }}>
-          <div style={{ marginBottom: "32px", textAlign: "left" }}>
+        <div style={{ marginTop: "16px" }}>
+          <button onClick={handleClearManifestCache}>
+            Clear Manifest Cache
+          </button>
+          <div
+            style={{
+              marginTop: "16px",
+              marginBottom: "32px",
+              textAlign: "left",
+            }}
+          >
             This is a simple example of relating manifest definitions to items
             in your inventory. The following is a list of all exotic armor
             pieces in the manifest, with items in your inventory marked as such.

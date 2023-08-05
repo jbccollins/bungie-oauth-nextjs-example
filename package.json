@@ -15,6 +15,7 @@
     "bungie-api-ts-no-const-enum": "0.0.10",
     "eslint": "8.46.0",
     "eslint-config-next": "13.4.12",
+    "fast-equals": "^5.0.1",
     "lodash.compact": "^3.0.1",
     "next": "13.4.12",
     "react": "18.2.0",

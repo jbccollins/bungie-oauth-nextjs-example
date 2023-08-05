@@ -1,3 +1,4 @@
+import { del, get, set } from "@/lib/idb-keyval";
 import { emptyArray, emptyObject } from "@/lib/utils";
 import {
   AllDestinyManifestComponents,
@@ -7,7 +8,31 @@ import {
   DestinyItemTranslationBlockDefinition,
   getDestinyManifest,
 } from "bungie-api-ts-no-const-enum/destiny2";
-import { unauthenticatedHttpClient } from "./http-client";
+import { deepEqual } from "fast-equals";
+import { HttpStatusError, unauthenticatedHttpClient } from "./http-client";
+
+// Module-local state
+const localStorageKey = "d2-manifest-version";
+const idbKey = "d2-manifest";
+let version: string | null = null;
+
+async function saveManifestToIndexedDB(
+  typedArray: object,
+  version: string,
+  tableAllowList: string[]
+) {
+  try {
+    await set(idbKey, typedArray);
+    console.log(`Successfully stored manifest file.`);
+    localStorage.setItem(localStorageKey, version);
+    localStorage.setItem(
+      `${localStorageKey}-whitelist`,
+      JSON.stringify(tableAllowList)
+    );
+  } catch (e) {
+    console.error("Error saving manifest file", e);
+  }
+}
 
 type Mutable<T> = { -readonly [P in keyof T]: Mutable<T[P]> };
 /** Functions that can reduce the size of a table after it's downloaded but before it's saved to cache. */
@@ -52,29 +77,57 @@ const tableTrimmers = {
   },
 };
 
-export const getManifest = async (tableAllowList: string[]) => {
+const getManifest = async () => {
+  const response = await getDestinyManifest(unauthenticatedHttpClient);
+  return response.Response;
+};
+
+async function loadManifest(
+  tableAllowList: string[]
+): Promise<AllDestinyManifestComponents> {
   let components: {
     [key: string]: string;
   } | null = null;
-  const { Response } = await getDestinyManifest(unauthenticatedHttpClient);
-  components = Response.jsonWorldComponentContentPaths.en;
-  return await loadManifestRemote(components, tableAllowList);
-};
+  try {
+    const data = await getManifest();
+
+    const path = data.jsonWorldContentPaths.en;
+    components = data.jsonWorldComponentContentPaths.en;
+
+    // Use the path as the version, rather than the "version" field, because
+    // Bungie can update the manifest file without changing that version.
+    version = path;
+  } catch (e) {
+    // If we can't get info about the current manifest, try to just use whatever's already saved.
+    version = localStorage.getItem(localStorageKey);
+    if (version) {
+      return await loadManifestFromCache(version, tableAllowList);
+    } else {
+      throw e;
+    }
+  }
+
+  try {
+    return await loadManifestFromCache(version, tableAllowList);
+  } catch (e) {
+    return await loadManifestRemote(version, components, tableAllowList);
+  }
+}
 
 /**
  * Returns a promise for the manifest data as a Uint8Array. Will cache it on success.
  */
 async function loadManifestRemote(
-  // version: string,
+  version: string,
   components: {
     [key: string]: string;
   },
   tableAllowList: string[]
 ): Promise<AllDestinyManifestComponents> {
   const manifest = await downloadManifestComponents(components, tableAllowList);
-
   // We intentionally don't wait on this promise
-  // saveManifestToIndexedDB(manifest, version, tableAllowList);
+  saveManifestToIndexedDB(manifest, version, tableAllowList);
+  console.log("loaded manifest from remote");
   return manifest;
 }
 
@@ -134,4 +187,78 @@ export async function downloadManifestComponents(
   await Promise.all(futures);
 
   return manifest as AllDestinyManifestComponents;
+}
+
+/**
+ * Returns a promise for the cached manifest of the specified
+ * version as a Uint8Array, or rejects.
+ */
+async function loadManifestFromCache(
+  version: string,
+  tableAllowList: string[]
+): Promise<AllDestinyManifestComponents> {
+  const currentManifestVersion = localStorage.getItem(localStorageKey);
+  const currentAllowList = JSON.parse(
+    localStorage.getItem(`${localStorageKey}-whitelist`) || "[]"
+  ) as string[];
+  if (
+    currentManifestVersion === version &&
+    deepEqual(currentAllowList, tableAllowList)
+  ) {
+    const manifest = await get<AllDestinyManifestComponents>(idbKey);
+    if (!manifest) {
+      await deleteManifestFile();
+      throw new Error("Empty cached manifest file");
+    }
+    console.log("loaded manifest from cache");
+    return manifest;
+  } else {
+    // Delete the existing manifest first, to make space
+    await deleteManifestFile();
+    throw new Error(`version mismatch: ${version} ${currentManifestVersion}`);
+  }
+}
+
+export function deleteManifestFile() {
+  localStorage.removeItem(localStorageKey);
+  return del(idbKey);
+}
+
+export async function doGetManifest(
+  tableAllowList: string[]
+): Promise<AllDestinyManifestComponents> {
+  try {
+    const manifest = await loadManifest(tableAllowList);
+    if (!manifest.DestinyVendorDefinition) {
+      throw new Error("Manifest corrupted, please reload");
+    }
+    return manifest;
+  } catch (e) {
+    let message = (e as Error).message;
+    if (
+      e instanceof TypeError ||
+      (e instanceof HttpStatusError && e.status === -1)
+    ) {
+      console.error();
+      message = navigator.onLine
+        ? "BungieService.NotConnectedOrBlocked"
+        : "BungieService.NotConnected";
+    } else if (e instanceof HttpStatusError) {
+      if (e.status === 503 || e.status === 522 /* cloudflare */) {
+        message = "BungieService.Difficulties";
+      } else if (e.status < 200 || e.status >= 400) {
+        (message = "BungieService.NetworkError"),
+          {
+            status: e.status,
+            statusText: e.message,
+          };
+      }
+    } else {
+      // Something may be wrong with the manifest
+      await deleteManifestFile();
+    }
+
+    console.error("Manifest loading error", e, message);
+    throw e;
+  }
 }
