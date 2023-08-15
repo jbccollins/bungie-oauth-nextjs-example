@@ -5,7 +5,7 @@ import { getToken, hasTokenExpired, removeToken } from "@/lib/oauth/tokens";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-export default function ApiExamples() {
+export default function OAuthPlayground() {
   const [tokenResetCount, setTokenResetCount] = useState(0);
   const router = useRouter();
   useEffect(() => {
@@ -28,6 +28,7 @@ export default function ApiExamples() {
       // Clean up here if you need to
     };
   }, []);
+
   const handleForceResetTokens = async () => {
     const refreshToken = getToken()?.refreshToken;
     if (!refreshToken) {

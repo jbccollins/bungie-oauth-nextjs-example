@@ -29,10 +29,15 @@ export interface Tokens {
 
 const localStorageKey = "authorization";
 
+const hasLocalStorage = () => typeof localStorage !== "undefined";
+
 /**
  * Get all token information from saved storage.
  */
 export function getToken(): Tokens | null {
+  if (!hasLocalStorage()) {
+    return null;
+  }
   const tokenString = localStorage.getItem(localStorageKey);
   return tokenString ? JSON.parse(tokenString) : null;
 }
@@ -41,6 +46,9 @@ export function getToken(): Tokens | null {
  * Save all the information about access/refresh tokens.
  */
 export function setToken(token: Tokens) {
+  if (!hasLocalStorage()) {
+    return;
+  }
   localStorage.setItem(localStorageKey, JSON.stringify(token));
 }
 
@@ -48,6 +56,9 @@ export function setToken(token: Tokens) {
  * Clear any saved token information.
  */
 export function removeToken() {
+  if (!hasLocalStorage()) {
+    return;
+  }
   localStorage.removeItem(localStorageKey);
 }
 

@@ -9,6 +9,7 @@ import {
   getLinkedProfiles,
   getProfile as getProfileApi,
 } from "bungie-api-ts-no-const-enum/destiny2";
+import { GroupUserInfoCard } from "bungie-api-ts-no-const-enum/groupv2";
 import {
   ServerResponse,
   UserInfoCard,
@@ -27,7 +28,7 @@ export async function getMembershipData() {
     (m) => m.crossSaveOverride == 0 || m.crossSaveOverride == m.membershipType
   );
 
-  let result: UserInfoCard | null = null;
+  let result: GroupUserInfoCard | null = null;
   if (memberships?.length == 1) {
     // This guardian only has one account linked, so we can proceed as normal
     result = memberships?.[0];

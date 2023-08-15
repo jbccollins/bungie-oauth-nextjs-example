@@ -6,6 +6,8 @@ This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next
 
 The project is a bare-bones app containing nothing more than what is required to do OAuth and a few examples of making authenticated requests.
 
+View the live demo here: https://bungie-oauth-nextjs-example.vercel.app/
+
 ## Getting Started
 
 First, install the dependencies
